@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="Native.fs" />
     <Compile Include="PortMidi.fs" />
   </ItemGroup>
   <PropertyGroup>
