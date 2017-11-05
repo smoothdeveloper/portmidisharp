@@ -74,7 +74,9 @@ type [<Struct>] MidiMessage private(value:int) =
 
   static member EncodeChannelMessage (messageType: MidiMessageType) (channel: byte) (data1: byte) (data2: byte) =
     MidiMessage.Encode (MidiMessage.StatusWithChannel messageType channel) data1 data2
-
+  static member NoteOn channel note velocity  = MidiMessage.EncodeChannelMessage MidiMessageType.NoteOn channel note velocity
+  static member NoteOff channel note velocity = MidiMessage.EncodeChannelMessage MidiMessageType.NoteOff channel note velocity
+  static member CC channel control value      = MidiMessage.EncodeChannelMessage MidiMessageType.ControllerChange channel control value
   static member FromWord word = MidiMessage word
   member x.Word = value
   member x.Status = byte (value &&& 0xff)
@@ -246,10 +248,10 @@ module Runtime =
         | err ->
           Error.Trigger(d.Device, getErrorText err)
 
-  let threadHandler (pollInterval: TimeSpan) (readBufferSize: int) =
+  (*let threadHandler (pollInterval: TimeSpan) (readBufferSize: int) =
     while true do
       processMidiEvents readBufferSize
-      Thread.Sleep pollInterval
+      Thread.Sleep pollInterval*)
 
   let internal checkError deviceInfo errnum =
     match errnum with
@@ -285,7 +287,7 @@ type MidiInput(deviceInfo: MidiDeviceInfo) =
   let error =
     Runtime.Error.Publish
     |> Runtime.filterEvent deviceInfo
-
+  member x.DeviceInfo = deviceInfo
   [<CLIEvent>] member x.Error = error
   [<CLIEvent>] member x.ChannelMessageReceived = channelMessageReceived
   [<CLIEvent>] member x.SystemMessageReceived = systemMessageReceived
@@ -311,6 +313,7 @@ type MidiInput(deviceInfo: MidiDeviceInfo) =
 type MidiOutput(deviceInfo: MidiDeviceInfo) =
   let mutable stream = IntPtr.Zero
   let isOpen () = stream <> IntPtr.Zero
+  member x.DeviceInfo = deviceInfo
   member x.Open bufferSize latency timeProc =
     if isOpen () then ()
     else
@@ -339,5 +342,3 @@ type MidiOutput(deviceInfo: MidiDeviceInfo) =
 
   member x.WriteSysex timestamp data =
     Platform.Pm_WriteSysEx stream timestamp data |> Runtime.checkError deviceInfo
-
-
