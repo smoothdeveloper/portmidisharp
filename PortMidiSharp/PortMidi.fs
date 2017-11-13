@@ -111,9 +111,9 @@ type [<Struct>] MidiMessage private(value:int) =
           | MidiNote.GSharp -> "G#"
           | _ -> failwithf "note %i" (byte note)
             
-        sprintf "%A (channel:%i) note (%i): %s octave: %i velocity %i" x.MessageType x.Channel.Value x.Data1 noteName octave x.Data2
+        sprintf "%20s (channel:%02i) note (%03i): %2s octave: %i velocity %i" (string x.MessageType) x.Channel.Value x.Data1 noteName octave x.Data2
       | _ ->
-        sprintf "%A (channel:%i) %i %i" x.MessageType x.Channel.Value x.Data1 x.Data2
+        sprintf "%20s (channel:%02i) %03i %03i" (string x.MessageType) x.Channel.Value x.Data1 x.Data2
     else
       sprintf "%A %i %i" ((x.Status |> LanguagePrimitives.EnumOfValue): MidiMessageType) x.Data1 x.Data2
 
