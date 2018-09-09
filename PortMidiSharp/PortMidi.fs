@@ -34,12 +34,12 @@ type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) =
 
 module Runtime =
   open Platform
-  let internal sizeOfEvent = Marshal.SizeOf<PmEvent>()
+  let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
   let init () = Pm_Initialize()
   let terminate () = Pm_Terminate()
 
   let inline internal getDeviceById id =
-    let deviceInfo : PmDeviceInfo = Pm_GetDeviceInfo id |> Marshal.PtrToStructure
+    let deviceInfo : PmDeviceInfo = Marshal.PtrToStructure(Pm_GetDeviceInfo id, typeof<PmDeviceInfo>) :?> _
     MidiDeviceInfo(id, deviceInfo)
 
   let getDevices () = Array.init (Pm_CountDevices()) getDeviceById
@@ -143,14 +143,14 @@ module Runtime =
       | count when count >= 0 ->
         let mutable ptr = buffer
         Array.init count (fun _ ->
-          let r : PmEvent = Marshal.PtrToStructure ptr
+          let r : PmEvent = Marshal.PtrToStructure(ptr, typeof<PmEvent>) :?> _
           ptr <- ptr + (nativeint sizeOfEvent)
           r) |> Choice1Of2
       | err -> Choice2Of2 (getErrorText (err |> LanguagePrimitives.EnumOfValue))
     Marshal.FreeHGlobal buffer
     result
       
-  let processMidiEvents (readBufferSize: int) (platform: MidiPlatformTrigger<_,_>) =
+  let processMidiEvents (readBufferSize: int) (platform: MidiPlatformTrigger<_,_,_>) =
       let devices = lock (inputDeviceGate) (fun () -> inputDevices.Values |> Seq.toArray)
       for d in devices do
         if hasHostError (d) then
@@ -171,7 +171,7 @@ module Runtime =
       processMidiEvents readBufferSize
       Thread.Sleep pollInterval*)
 
-  let internal checkError deviceInfo (platform: MidiPlatformTrigger<_,_>) errnum =
+  let internal checkError deviceInfo (platform: MidiPlatformTrigger<_,_,_>) errnum =
     match errnum with
     | PmError.NoError -> ()
     | _ -> platform.NoticeError (deviceInfo, (Platform.Pm_GetErrorText errnum |> Marshal.PtrToStringAnsi))
@@ -181,11 +181,38 @@ module Runtime =
     e
     |> Event.filter (fst >> (refEqual deviceInfo))
     |> Event.map snd
-       
-type MidiInput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,_>) as this =
+
+  let getDevice nameFilter isInput =
+    let devices = getDevices()
+    devices |> Seq.tryFind (fun d -> d.Name.Contains nameFilter && d.SupportsInput = isInput && d.SupportsOutput = not isInput)       
+  
+
+  let midiCallback = Event<_>()
+  let mutable callbackCounter = 0
+  let callback platform (timestamp: PortTime.Native.PtTimestamp) (data : IntPtr) = 
+    callbackCounter <- callbackCounter + 1
+    processMidiEvents 256 platform
+    midiCallback.Trigger timestamp
+  let makePtCallback platform =
+    let ptCallback = PortTime.Native.PtCallback(callback platform)
+    PortTime.Native.Platform.Pt_Start (1) ptCallback IntPtr.Zero |> ignore
+    let midiPlatform : Midi.Registers.IMidiPlatform<MidiDeviceInfo,_,_> = platform :> _
+
+    midiPlatform.Error.Add(fun (device, m) -> 
+      if device.SupportsInput then
+        printfn "ERROR INPUT %s %s" device.Name  m
+      if device.SupportsOutput then
+        printfn "ERROR OUTPUT %s %s" device.Name  m
+    )
+    ptCallback
+
+  let ptGetTime = Native.PmTimeProc(fun data -> PortTime.Native.Platform.Pt_Time())
+  init() |> ignore
+
+type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,_,'timestamp>) as this =
   let mutable stream = IntPtr.Zero
   let isOpen () = stream <> IntPtr.Zero
-  let midiPlatform = platform :> Midi.Registers.IMidiPlatform<_,_>
+  let midiPlatform = platform :> Midi.Registers.IMidiPlatform<_,_,_>
   let realtimeMessageReceived =
     midiPlatform.RealtimeMessageReceived
     |> Runtime.filterEvent deviceInfo
@@ -216,7 +243,7 @@ type MidiInput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Midi
       if isOpen() then
         Runtime.registerOpenInputDevice deviceInfo stream
 
-  interface IMidiInput with
+  interface IMidiInput<'timestamp> with
     [<CLIEvent>] member x.Error = error
     [<CLIEvent>] member x.ChannelMessageReceived = channelMessageReceived
     [<CLIEvent>] member x.SystemMessageReceived = systemMessageReceived
@@ -234,7 +261,7 @@ type MidiInput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Midi
         Platform.Pm_Close stream |> Runtime.checkError deviceInfo platform
         stream <- IntPtr.Zero
 
-type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,MidiEvent>) as this =
+type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,MidiEvent<int>,int>) as this =
   let mutable stream = IntPtr.Zero
   let isOpen () = stream <> IntPtr.Zero
   member x.DeviceInfo = deviceInfo
@@ -246,7 +273,7 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
       let timeInfo = IntPtr.Zero
       Platform.Pm_OpenOutput &stream deviceInfo.DeviceId driverInfo bufferSize timeProc timeInfo latency |> Runtime.checkError deviceInfo platform
   
-  interface IMidiOutput with
+  interface IMidiOutput<int> with
     member x.DeviceInfo = this.DeviceInfo :> _
     member __.Open bufferSize latency =
       this.Open bufferSize latency pmTimeProc
