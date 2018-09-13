@@ -37,7 +37,7 @@ module Runtime =
   let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
   let init () = Pm_Initialize()
   let terminate () = Pm_Terminate()
-
+  let pmTimeProc = Native.PmTimeProc(fun _ -> PortTime.Native.Platform.Pt_Time())
   let inline internal getDeviceById id =
     let deviceInfo : PmDeviceInfo = Marshal.PtrToStructure(Pm_GetDeviceInfo id, typeof<PmDeviceInfo>) :?> _
     MidiDeviceInfo(id, deviceInfo)
@@ -299,3 +299,5 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
 
     member x.WriteSysex timestamp data =
       Platform.Pm_WriteSysEx stream timestamp data |> Runtime.checkError deviceInfo platform
+
+    
