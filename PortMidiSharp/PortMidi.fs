@@ -300,4 +300,14 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
     member x.WriteSysex timestamp data =
       Platform.Pm_WriteSysEx stream timestamp data |> Runtime.checkError deviceInfo platform
 
-    
+
+type PortMidiPlatform() =
+    let platform = MidiPlatformTrigger<_,_,_>()
+    member x.OpenOutputDevice bufferSize latency deviceInfo =
+        let mOut = MidiOutput(deviceInfo, Runtime.ptGetTime, platform) :> IMidiOutput<_>
+        mOut.Open bufferSize latency
+        mOut
+    member x.OpenInputDevice bufferSize deviceInfo =
+        let mIn = MidiInput(deviceInfo, Runtime.ptGetTime, platform) :> IMidiInput<_>
+        mIn.Open bufferSize
+        mIn
