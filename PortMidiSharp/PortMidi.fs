@@ -304,10 +304,23 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
 type PortMidiPlatform() =
     let platform = MidiPlatformTrigger<_,_,_>()
     member x.Platform = platform
+    member x.MidiPlatform = platform :> IMidiPlatform<_,_,_>
+    member x.Now = Runtime.ptGetTime.Invoke IntPtr.Zero
+    member x.GetNow () = x.Now 
+    
+    member x.InputDevices =
+        Runtime.getDevices()
+        |> Array.filter (fun d -> d.SupportsInput)
+
+    member x.OutputDevices =
+        Runtime.getDevices()
+        |> Array.filter (fun d -> d.SupportsOutput)
+
     member x.OpenOutputDevice bufferSize latency deviceInfo =
         let mOut = MidiOutput(deviceInfo, Runtime.ptGetTime, platform) :> IMidiOutput<_>
         mOut.Open bufferSize latency
         mOut
+
     member x.OpenInputDevice bufferSize deviceInfo =
         let mIn = MidiInput(deviceInfo, Runtime.ptGetTime, platform) :> IMidiInput<_>
         mIn.Open bufferSize
