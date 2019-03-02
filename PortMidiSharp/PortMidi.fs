@@ -32,15 +32,29 @@ type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) =
       member __.WriteSysexByte b = sysex.WriteByte b
       member __.SysexData = sysex.ToArray()
 
-module Runtime =
+
+module Interop =
   open Platform
-  let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
-  let init () = Pm_Initialize()
-  let terminate () = Pm_Terminate()
-  let pmTimeProc = Native.PmTimeProc(fun _ -> PortTime.Native.Platform.Pt_Time())
-  let inline internal getDeviceById id =
+  let getDeviceById id =
     let deviceInfo : PmDeviceInfo = Marshal.PtrToStructure(Pm_GetDeviceInfo id, typeof<PmDeviceInfo>) :?> _
     MidiDeviceInfo(id, deviceInfo)
+  let internal getErrorText err = Pm_GetErrorText err |> Marshal.PtrToStringAnsi
+  let internal hasHostError (device: OpenedDevice) = Pm_HasHostError device.Stream = 1
+
+  let internal getHostErrorText () =
+    let msg = Marshal.AllocHGlobal(256)
+    Pm_GetHostErrorText msg 256u
+    let text = Marshal.PtrToStringAnsi msg
+    Marshal.FreeHGlobal msg
+    text
+
+module Runtime =
+  open Interop
+  open Platform
+  
+  //let init () = Pm_Initialize()
+  //let terminate () = Pm_Terminate()
+  let pmTimeProc = Native.PmTimeProc(fun _ -> PortTime.Native.Platform.Pt_Time())
 
   let getDevices () = Array.init (Pm_CountDevices()) getDeviceById
   
@@ -51,17 +65,6 @@ module Runtime =
   let defaultInputDevice =
     let id = Pm_GetDefaultInputDeviceID()
     if id < 0 then None else Some(getDeviceById id)
-
-  let internal getErrorText err = Pm_GetErrorText err |> Marshal.PtrToStringAnsi
-
-  let internal hasHostError (device: OpenedDevice) = Pm_HasHostError device.Stream = 1
-
-  let internal getHostErrorText () =
-    let msg = Marshal.AllocHGlobal(256)
-    Pm_GetHostErrorText msg 256u
-    let text = Marshal.PtrToStringAnsi msg
-    Marshal.FreeHGlobal msg
-    text
 
   open System.Threading
   open Midi.Registers
@@ -135,7 +138,7 @@ module Runtime =
       (fun d -> d:> ISysexInputState)
     
 #endif
-
+  let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
   let internal read stream bufferSize = 
     let buffer = Marshal.AllocHGlobal (sizeOfEvent * bufferSize)
     let result = 
@@ -191,7 +194,7 @@ module Runtime =
   let mutable callbackCounter = 0
   let callback platform (timestamp: PortTime.Native.PtTimestamp) (data : IntPtr) = 
     callbackCounter <- callbackCounter + 1
-    processMidiEvents 256 platform
+    processMidiEvents 4096 platform
     midiCallback.Trigger timestamp
   let makePtCallback platform =
     let ptCallback = PortTime.Native.PtCallback(callback platform)
@@ -207,7 +210,7 @@ module Runtime =
     ptCallback
 
   let ptGetTime = Native.PmTimeProc(fun data -> PortTime.Native.Platform.Pt_Time())
-  init() |> ignore
+  //init() |> ignore
 
 type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,_,'timestamp>) as this =
   let mutable stream = IntPtr.Zero
