@@ -21,16 +21,28 @@ type MidiDeviceInfo internal (id: int, inner: PmDeviceInfo) as this =
 open Midi.MidiMessageTypeIdentifaction
 open Midi.Registers
 
-type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) =
+type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) as this =
     let mutable sysex  : MemoryStream = Unchecked.defaultof<_>
+    let inputState = this :> Midi.Registers.ISysexInputState
     member __.Stream = stream
     member __.Device = device
     interface Midi.Registers.ISysexInputState with
-      member __.BeginSysex () = sysex <- new MemoryStream(); sysex.WriteByte 0xf0uy;
-      member __.DisposeSysex () = sysex.Dispose(); sysex <- null
-      member __.SysexInProgress = not (isNull sysex)
-      member __.WriteSysexByte b = sysex.WriteByte b
-      member __.SysexData = sysex.ToArray()
+        member __.BeginSysex () = 
+            if inputState.SysexInProgress then 
+#if DEBUG
+                assert false // this is internal code and shouldn't happen
+#else
+                inputState.DisposeSysex()
+#endif
+            sysex <- new MemoryStream()
+            sysex.WriteByte 0xf0uy;
+        member __.DisposeSysex () =
+            if inputState.SysexInProgress then 
+                sysex.Dispose()
+            sysex <- null
+        member __.SysexInProgress = not (isNull sysex)
+        member __.WriteSysexByte b = sysex.WriteByte b
+        member __.SysexData = sysex.ToArray()
 
 
 module Interop =
@@ -51,9 +63,7 @@ module Interop =
 module Runtime =
   open Interop
   open Platform
-  
-  //let init () = Pm_Initialize()
-  //let terminate () = Pm_Terminate()
+
   let pmTimeProc = Native.PmTimeProc(fun _ -> PortTime.Native.Platform.Pt_Time())
 
   let getDevices () = Array.init (Pm_CountDevices()) getDeviceById
@@ -77,11 +87,7 @@ module Runtime =
   let internal discardOpenInputDevice (deviceInfo: MidiDeviceInfo) =
     lock inputDeviceGate (fun () -> inputDevices.Remove deviceInfo.DeviceId) |> ignore
 
-//  let Error = new Event<_>()
-//  let RealtimeMessageReceived = new Event<_>()
-//  let SystemMessageReceived = new Event<_>()
-//  let ChannelMessageReceived = new Event<_>()
-//  let SysexReceived = new Event<_>()
+
 #if RAW_IMPL
   let internal getMessageType message : MidiMessageType =
     if message <= 14 then (message &&& 240) else (message &&& 255)
@@ -210,7 +216,6 @@ module Runtime =
     ptCallback
 
   let ptGetTime = Native.PmTimeProc(fun data -> PortTime.Native.Platform.Pt_Time())
-  //init() |> ignore
 
 type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,_,'timestamp>) as this =
   let mutable stream = IntPtr.Zero
