@@ -1,12 +1,110 @@
 ﻿namespace PortMidi
+#if HAS_MIDINETTE
 open Midi
+open Midi.MidiMessageTypeIdentifaction
+open Midi.Registers
+#endif
 open PortMidi.Native
 open System.Collections.Generic
 open System.Runtime.InteropServices
 open System
 open System.IO
 
-type MidiDeviceInfo internal (id: int, inner: PmDeviceInfo) as this =
+  
+#if !HAS_MIDINETTE
+
+type MidiMessageType =
+| NoteOff                  = 0x80uy
+| NoteOn                   = 0x90uy
+| PolyKeyPressure          = 0xa0uy
+| ControllerChange         = 0xb0uy
+| ProgramChange            = 0xc0uy
+| ChannelPressure          = 0xd0uy
+| PitchBendChange          = 0xe0uy
+| SysEx                    = 240uy
+| MidiTimeCodeQuarterFrame = 241uy
+| SongPositionPointer      = 242uy
+| SongSelect               = 243uy
+| TuneRequest              = 246uy
+| SysExEnd                 = 247uy
+| TimingClock              = 248uy
+| Start                    = 250uy
+| Continue                 = 251uy
+| Stop                     = 252uy
+| ActiveSensing            = 254uy
+| SystemReset              = 255uy
+module MidiMessageTypeIdentifaction =
+  let inline isRealtimeMessage messageType = messageType >= MidiMessageType.TimingClock && messageType <= MidiMessageType.SystemReset
+  let inline isSystemMessage messageType = messageType >= MidiMessageType.SysEx && messageType <= MidiMessageType.SysExEnd
+  let inline isChannelMessage messageType = messageType >= MidiMessageType.NoteOff && messageType <= (LanguagePrimitives.EnumOfValue 239uy)
+  let inline isSysexBeginOrEnd messageType = messageType = MidiMessageType.SysEx || messageType = MidiMessageType.SysExEnd
+open MidiMessageTypeIdentifaction
+
+type [<Struct>] MidiMessage private(value:int) =
+  static member StatusWithChannel (messageType: MidiMessageType) channel = byte messageType + channel
+  (*
+  static member NoteWithOctave (note: MidiNote) (octave: byte) = (octave * 12uy) + (byte note)
+  *)
+  static member GetNoteAndOctave (midiNoteNumber: byte) =
+    let octave = midiNoteNumber / 12uy
+    let note = midiNoteNumber % 12uy
+    note, octave
+    
+
+  static member Encode (status: byte) (data1: byte) (data2: byte) =
+    MidiMessage( 
+      (((int data2) <<< 16) &&& 0xff0000)
+      ||| (((int data1) <<< 8) &&& 0xff00)
+      ||| ((int status) &&& 0xff)
+    )
+
+  static member EncodeChannelMessage (messageType: MidiMessageType) (channel: byte) (data1: byte) (data2: byte) =
+    MidiMessage.Encode (MidiMessage.StatusWithChannel messageType channel) data1 data2
+  static member NoteOn channel note velocity  = MidiMessage.EncodeChannelMessage MidiMessageType.NoteOn channel note velocity
+  static member NoteOff channel note velocity = MidiMessage.EncodeChannelMessage MidiMessageType.NoteOff channel note velocity
+  static member CC channel control value      = MidiMessage.EncodeChannelMessage MidiMessageType.ControllerChange channel control value
+  static member FromWord word = MidiMessage word
+  member x.Word = value
+  member x.Status = byte (value &&& 0xff)
+  member x.Data1 = byte ((value >>> 8) &&& 0xff)
+  member x.Data2 = byte ((value >>> 16) &&& 0xff)
+  member x.IsChannelMessage = (x.Status |> LanguagePrimitives.EnumOfValue) |> isChannelMessage
+  member x.MessageType : MidiMessageType =
+    let messageType =
+      if x.IsChannelMessage then
+        (x.Status &&& 0b11110000uy)
+      else
+        x.Status
+    messageType |> LanguagePrimitives.EnumOfValue
+    
+  member x.Channel =
+    if x.IsChannelMessage then
+      Some (x.Status &&& 0b00001111uy)
+    else
+      None
+  override x.ToString () = 
+    if x.IsChannelMessage then
+      match x.MessageType with
+      | MidiMessageType.NoteOn | MidiMessageType.NoteOff ->
+        let note, octave = MidiMessage.GetNoteAndOctave x.Data1
+        let notes = [|"C";"C#";"D";"D#";"E";"F";"F#";"G";"G#";"A";"A#";"B"|]
+        let noteName = if notes.Length > int note then notes.[int note] else failwithf "note %i" (byte note)
+            
+        sprintf "%20s (channel:%02i) note (%03i): %2s octave: %i velocity %i" (string x.MessageType) x.Channel.Value x.Data1 noteName octave x.Data2
+      | _ ->
+        sprintf "%20s (channel:%02i) %03i %03i" (string x.MessageType) x.Channel.Value x.Data1 x.Data2
+    else
+      sprintf "%A %i %i" ((x.Status |> LanguagePrimitives.EnumOfValue): MidiMessageType) x.Data1 x.Data2
+
+type [<Struct>] MidiEvent (message: MidiMessage, timestamp: int) =
+  member __.Message = message
+  member __.Timestamp = timestamp
+
+
+
+#endif
+
+type MidiDeviceInfo internal (id: int, inner: PmDeviceInfo) as _this =
   let interfaceName = Marshal.PtrToStringAnsi inner.Interface
   let name = Marshal.PtrToStringAnsi inner.Name
   member x.DeviceId = id
@@ -15,17 +113,27 @@ type MidiDeviceInfo internal (id: int, inner: PmDeviceInfo) as this =
   member x.SupportsInput = inner.Input = 1
   member x.SupportsOutput = inner.Output = 1
   override x.ToString () = sprintf "Device %i: %s, %s %s%s" id name interfaceName (if x.SupportsInput then "Input" else "") (if x.SupportsOutput then "Output" else "")
+#if HAS_MIDINETTE
   interface IDeviceInfo with
-    member x.Name = this.Name
-    member x.DeviceId = this.DeviceId
-open Midi.MidiMessageTypeIdentifaction
-open Midi.Registers
+    member x.Name = _this.Name
+    member x.DeviceId = _this.DeviceId
+#endif
 
-type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) as this =
+
+type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) as _this =
     let mutable sysex  : MemoryStream = Unchecked.defaultof<_>
-    let inputState = this :> Midi.Registers.ISysexInputState
+    #if HAS_MIDINETTE
+    let inputState = _this :> Midi.Registers.ISysexInputState
+    #endif
     member __.Stream = stream
     member __.Device = device
+#if !HAS_MIDINETTE
+    member __.BeginSysex () = sysex <- new MemoryStream(); sysex.WriteByte 0xf0uy;
+    member __.DisposeSysex () = sysex.Dispose(); sysex <- null
+    member __.SysexInProgress = not (isNull sysex)
+    member __.WriteSysexByte b = sysex.WriteByte b
+    member __.SysexData = sysex.ToArray()
+#else
     interface Midi.Registers.ISysexInputState with
         member __.BeginSysex () = 
             if inputState.SysexInProgress then 
@@ -43,7 +151,7 @@ type internal OpenedDevice(device: MidiDeviceInfo, stream: IntPtr) as this =
         member __.SysexInProgress = not (isNull sysex)
         member __.WriteSysexByte b = sysex.WriteByte b
         member __.SysexData = sysex.ToArray()
-
+#endif
 
 module Interop =
   open Platform
@@ -77,7 +185,7 @@ module Runtime =
     if id < 0 then None else Some(getDeviceById id)
 
   open System.Threading
-  open Midi.Registers
+  
 
   let internal inputDeviceGate = obj()
   let internal inputDevices = Dictionary<int,OpenedDevice>()
@@ -88,20 +196,32 @@ module Runtime =
     lock inputDeviceGate (fun () -> inputDevices.Remove deviceInfo.DeviceId) |> ignore
 
 
-#if RAW_IMPL
+#if !HAS_MIDINETTE
+  let error = new Event<_>()
+  let realtimeMessageReceived = new Event<_>()
+  let systemMessageReceived = new Event<_>()
+  let channelMessageReceived = new Event<_>()
+  let sysexReceived = new Event<_>()
+  let Error = error.Publish
+  let RealtimeMessageReceived = realtimeMessageReceived.Publish
+  let SystemMessageReceived = systemMessageReceived.Publish
+  let ChannelMessageReceived = channelMessageReceived.Publish
+  let SysexReceived = sysexReceived.Publish
+
   let internal getMessageType message : MidiMessageType =
     if message <= 14 then (message &&& 240) else (message &&& 255)
     |> byte
     |> LanguagePrimitives.EnumOfValue 
 
   let internal completeSysex (device: OpenedDevice) =
-    let sysexInput : Midi.Registers.ISysexInputState = device :> _
+    
+    let sysexInput = device
     if sysexInput.SysexData.Length > 5 then
-      (device.Device, sysexInput.SysexData) |> SysexReceived.Trigger
+      (device.Device, sysexInput.SysexData) |> sysexReceived.Trigger
     sysexInput.DisposeSysex ()
 
   let internal processSysexMessage (device: OpenedDevice) message =
-    let sysexInput : Midi.Registers.ISysexInputState = device :> _
+    let sysexInput = device
     let mutable endEncountered = false
     for i in 0 .. 3 do
       if not endEncountered then
@@ -113,11 +233,11 @@ module Runtime =
           endEncountered <- true
   
   let internal processEvents (device: OpenedDevice) (events: PmEvent array) =
-    let sysexInput : Midi.Registers.ISysexInputState = device :> _
+    let sysexInput = device
     for e in events do
       let messageType = getMessageType e.Message
       if isRealtimeMessage messageType then
-        (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> RealtimeMessageReceived.Trigger
+        (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> realtimeMessageReceived.Trigger
       elif sysexInput.SysexInProgress && messageType <> MidiMessageType.SysEx then
           processSysexMessage device e.Message
       elif isSystemMessage messageType then
@@ -128,11 +248,10 @@ module Runtime =
           sysexInput.BeginSysex()
           processSysexMessage device e.Message
         else
-          (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> SystemMessageReceived.Trigger 
+          (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> systemMessageReceived.Trigger 
       else
-        (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> ChannelMessageReceived.Trigger
+        (device.Device, MidiEvent(MidiMessage.FromWord e.Message, e.Timestamp)) |> channelMessageReceived.Trigger
 #else
-
   let internal processEvents (device: OpenedDevice) (events: PmEvent array) platform =
     Midi.Registers.PlatformImplHelp.processEvents 
       device 
@@ -142,10 +261,10 @@ module Runtime =
       (fun m -> MidiEvent(MidiMessage.FromWord m.Message, m.Timestamp)) 
       (fun m -> m.Message)
       (fun d -> d:> ISysexInputState)
-    
 #endif
+
   let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
-  let internal read stream bufferSize = 
+  let read stream bufferSize = 
     let buffer = Marshal.AllocHGlobal (sizeOfEvent * bufferSize)
     let result = 
       match Pm_Read stream buffer bufferSize with
@@ -154,36 +273,45 @@ module Runtime =
         Array.init count (fun _ ->
           let r : PmEvent = Marshal.PtrToStructure(ptr, typeof<PmEvent>) :?> _
           ptr <- ptr + (nativeint sizeOfEvent)
-          r) |> Choice1Of2
-      | err -> Choice2Of2 (getErrorText (err |> LanguagePrimitives.EnumOfValue))
+          r) |> Result.Ok
+      | err -> Result.Error (getErrorText (err |> LanguagePrimitives.EnumOfValue))
     Marshal.FreeHGlobal buffer
     result
       
-  let processMidiEvents (readBufferSize: int) (platform: MidiPlatformTrigger<_,_,_>) =
+  let processMidiEvents (readBufferSize: int) 
+  #if HAS_MIDINETTE
+    (platform: MidiPlatformTrigger<_,_,_>)
+  #endif
+    (noticeError)
+    =
       let devices = lock (inputDeviceGate) (fun () -> inputDevices.Values |> Seq.toArray)
       for d in devices do
         if hasHostError (d) then
-          platform.NoticeError(d.Device, getHostErrorText ())
+          noticeError(d.Device, getHostErrorText ())
 
         match Platform.Pm_Poll(d.Stream) with
         | PmError.GotData -> 
           match read d.Stream readBufferSize with
-          | Choice2Of2 message -> platform.NoticeError(d.Device, message)
-          | Choice1Of2 events ->
+          | Result.Error message -> noticeError(d.Device, message)
+          | Result.Ok events ->
+            #if HAS_MIDINETTE
             processEvents d events platform
+            #else
+            processEvents d events 
+            #endif
         | PmError.NoData -> ()
         | err ->
-          platform.NoticeError(d.Device, getErrorText err)
+          noticeError(d.Device, getErrorText err)
 
   (*let threadHandler (pollInterval: TimeSpan) (readBufferSize: int) =
     while true do
       processMidiEvents readBufferSize
       Thread.Sleep pollInterval*)
 
-  let internal checkError deviceInfo (platform: MidiPlatformTrigger<_,_,_>) errnum =
+  let internal checkError deviceInfo noticeError errnum =
     match errnum with
     | PmError.NoError -> ()
-    | _ -> platform.NoticeError (deviceInfo, (Platform.Pm_GetErrorText errnum |> Marshal.PtrToStringAnsi))
+    | _ -> noticeError (deviceInfo, (Platform.Pm_GetErrorText errnum |> Marshal.PtrToStringAnsi))
 
   let inline internal refEqual a b = Object.ReferenceEquals(a, b)
   let inline internal filterEvent deviceInfo e =
@@ -198,29 +326,51 @@ module Runtime =
 
   let midiCallback = Event<_>()
   let mutable callbackCounter = 0
-  let callback platform (timestamp: PortTime.Native.PtTimestamp) (data : IntPtr) = 
+  let callback noticeError (timestamp: PortTime.Native.PtTimestamp) (data : IntPtr) = 
     callbackCounter <- callbackCounter + 1
-    processMidiEvents 4096 platform
+    processMidiEvents 4096 noticeError
     midiCallback.Trigger timestamp
   let makePtCallback platform =
     let ptCallback = PortTime.Native.PtCallback(callback platform)
     PortTime.Native.Platform.Pt_Start (1) ptCallback IntPtr.Zero |> ignore
-    let midiPlatform : Midi.Registers.IMidiPlatform<MidiDeviceInfo,_,_> = platform :> _
-
-    midiPlatform.Error.Add(fun (device, m) -> 
+    let noticeError (device: MidiDeviceInfo, m) = 
       if device.SupportsInput then
         printfn "ERROR INPUT %s %s" device.Name  m
       if device.SupportsOutput then
         printfn "ERROR OUTPUT %s %s" device.Name  m
-    )
+    
+  
+#if HAS_MIDINETTE
+    let midiPlatform : Midi.Registers.IMidiPlatform<MidiDeviceInfo,_,_> = platform :> _
+    midiPlatform.Error.Add(noticeError)
+#else
+    Error.Add noticeError
+#endif
+    
     ptCallback
 
   let ptGetTime = Native.PmTimeProc(fun data -> PortTime.Native.Platform.Pt_Time())
 
-type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,_,'timestamp>) as this =
+#if !HAS_MIDINETTE
+module midiPlatform = Runtime
+#else
+
+#endif
+
+
+type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc
+  #if HAS_MIDINETTE
+  , platform: MidiPlatformTrigger<_,_,'timestamp>
+  #endif
+  ) as _this =
   let mutable stream = IntPtr.Zero
   let isOpen () = stream <> IntPtr.Zero
+#if HAS_MIDINETTE
   let midiPlatform = platform :> Midi.Registers.IMidiPlatform<_,_,_>
+  let noticeError = platform.NoticeError
+#else
+  let noticeError = midiPlatform.error.Trigger
+#endif
   let realtimeMessageReceived =
     midiPlatform.RealtimeMessageReceived
     |> Runtime.filterEvent deviceInfo
@@ -247,31 +397,45 @@ type MidiInput<'timestamp>(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, pl
     else
       let driverInfo = IntPtr.Zero
       let timeInfo = IntPtr.Zero
-      Platform.Pm_OpenInput &stream deviceInfo.DeviceId driverInfo bufferSize timeProc timeInfo |> Runtime.checkError deviceInfo platform
+      
+      Platform.Pm_OpenInput &stream deviceInfo.DeviceId driverInfo bufferSize timeProc timeInfo |> Runtime.checkError deviceInfo noticeError
       if isOpen() then
         Runtime.registerOpenInputDevice deviceInfo stream
-
+#if HAS_MIDINETTE
   interface IMidiInput<'timestamp> with
     [<CLIEvent>] member x.Error = error
     [<CLIEvent>] member x.ChannelMessageReceived = channelMessageReceived
     [<CLIEvent>] member x.SystemMessageReceived = systemMessageReceived
     [<CLIEvent>] member x.SysexReceived = sysexReceived
     [<CLIEvent>] member x.RealtimeMessageReceived = realtimeMessageReceived
-    member x.DeviceInfo = this.DeviceInfo :> _
+    member x.DeviceInfo = _this.DeviceInfo :> _
     member x.Open bufferSize =
       //let timeProc = PmTimeProc(fun _ -> timeProc)
-      this.Open bufferSize pmTimeProc
+      _this.Open bufferSize pmTimeProc
 
     member x.Close () =
       if not (isOpen ()) then ()
       else
         Runtime.discardOpenInputDevice deviceInfo
-        Platform.Pm_Close stream |> Runtime.checkError deviceInfo platform
+        Platform.Pm_Close stream |> Runtime.checkError deviceInfo platform.NoticeError
         stream <- IntPtr.Zero
+#endif
 
-type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: MidiPlatformTrigger<_,MidiEvent<int>,int>) as this =
+type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc
+#if HAS_MIDINETTE
+    , platform: MidiPlatformTrigger<_,MidiEvent<int>,int>
+#endif
+    ) as _this =
   let mutable stream = IntPtr.Zero
   let isOpen () = stream <> IntPtr.Zero
+
+  let noticeError = 
+    #if HAS_MIDINETTE
+    platform.NoticeError
+    #else
+    Runtime.error.Trigger
+    #endif
+
   member x.DeviceInfo = deviceInfo
 
   member x.Open bufferSize latency timeProc =
@@ -279,17 +443,18 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
     else
       let driverInfo = IntPtr.Zero
       let timeInfo = IntPtr.Zero
-      Platform.Pm_OpenOutput &stream deviceInfo.DeviceId driverInfo bufferSize timeProc timeInfo latency |> Runtime.checkError deviceInfo platform
-  
+      Platform.Pm_OpenOutput &stream deviceInfo.DeviceId driverInfo bufferSize timeProc timeInfo latency |> Runtime.checkError deviceInfo noticeError
+
+#if HAS_MIDINETTE  
   interface IMidiOutput<int> with
-    member x.DeviceInfo = this.DeviceInfo :> _
+    member x.DeviceInfo = _this.DeviceInfo :> _
     member __.Open bufferSize latency =
-      this.Open bufferSize latency pmTimeProc
+      _this.Open bufferSize latency pmTimeProc
 
     member __.Close () =
       if not (isOpen ()) then ()
       else
-        Platform.Pm_Close stream |> Runtime.checkError deviceInfo platform
+        Platform.Pm_Close stream |> Runtime.checkError deviceInfo platform.NoticeError
         stream <- IntPtr.Zero
 
     member x.WriteMessages timestamp (messages: MidiMessage array) =
@@ -300,13 +465,13 @@ type MidiOutput(deviceInfo: MidiDeviceInfo, pmTimeProc:PmTimeProc, platform: Mid
           e.Timestamp <- timestamp
           e.Message <- m.Word
           e)
-      Platform.Pm_Write stream events (Array.length messages) |> Runtime.checkError deviceInfo platform
+      Platform.Pm_Write stream events (Array.length messages) |> Runtime.checkError deviceInfo platform.NoticeError
 
     member x.WriteMessage timestamp (message: MidiMessage) =
-      Platform.Pm_WriteShort stream timestamp message.Word |> Runtime.checkError deviceInfo platform
+      Platform.Pm_WriteShort stream timestamp message.Word |> Runtime.checkError deviceInfo platform.NoticeError
 
     member x.WriteSysex timestamp data =
-      Platform.Pm_WriteSysEx stream timestamp data |> Runtime.checkError deviceInfo platform
+      Platform.Pm_WriteSysEx stream timestamp data |> Runtime.checkError deviceInfo platform.NoticeError
 
 
 type PortMidiPlatform() =
@@ -333,3 +498,4 @@ type PortMidiPlatform() =
         let mIn = MidiInput(deviceInfo, Runtime.ptGetTime, platform) :> IMidiInput<_>
         mIn.Open bufferSize
         mIn
+#endif

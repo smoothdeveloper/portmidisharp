@@ -139,3 +139,9 @@ module Platform =
   let Pm_WriteSysEx stream timestamp msg = if is64bit then Platform64.Pm_WriteSysEx(stream, timestamp, msg) else Platform32.Pm_WriteSysEx(stream, timestamp, msg)
   let Pm_OpenInput (stream: byref<IntPtr>) inputDevice inputDriverInfo bufferSize timeProc timeInfo = if is64bit then Platform64.Pm_OpenInput(&stream, inputDevice, inputDriverInfo, bufferSize, timeProc, timeInfo) else Platform32.Pm_OpenInput(&stream, inputDevice, inputDriverInfo, bufferSize, timeProc, timeInfo)
   let Pm_OpenOutput (stream: byref<IntPtr>) inputDevice inputDriverInfo bufferSize timeProc timeInfo latency = if is64bit then Platform64.Pm_OpenOutput(&stream, inputDevice, inputDriverInfo, bufferSize, timeProc, timeInfo, latency) else Platform32.Pm_OpenOutput(&stream, inputDevice, inputDriverInfo, bufferSize, timeProc, timeInfo, latency)
+
+  
+  let inline Pm_Message (status, data1, data2) =
+    (((data2 <<< 16) &&& 0xff0000)
+    ||| ((data1 <<< 8) &&& 0x00ff00)
+    ||| (status &&& 0x0000ff))

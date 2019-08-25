@@ -4,22 +4,25 @@
     <TargetFrameworks>netstandard2.0;net45</TargetFrameworks>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputPath>..\build\$(Configuration)\$(Platform)</OutputPath>
+    <UseMidinette>false</UseMidinette>
   </PropertyGroup>
+  
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <WarningsAsErrors />
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UseMidinette)'=='true'">
+    <DefineConstants>$(DefineConstants);HAS_MIDINETTE;</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Native.fs" />
     <Compile Include="PortMidi.fs" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\Midinette\src\Midinette\Midinette.fsproj">
-      <Name>Midinette</Name>
-      <Project>{c2289e9f-8d6b-42d1-8aa9-bb47f25919f2}</Project>
-      <Private>True</Private>
-    </ProjectReference>
+  <ItemGroup Condition="'$(UseMidinette)'=='true'">
+    <ProjectReference Include="..\..\Midinette\src\Midinette\Midinette.fsproj" />
   </ItemGroup>
   <Import Project="..\.paket\Paket.Restore.targets" />
 </Project>
