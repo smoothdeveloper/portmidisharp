@@ -30,7 +30,15 @@ module Platform64 =
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
 
 module Platform = 
-  let is64bit = Environment.Is64BitProcess
+  let is64bit = 
+    #if HARDCODE_X64
+    true
+    #elif HARDCODE_X86
+    false
+    #else
+    Environment.Is64BitProcess
+    #endif
+  
   let Pt_Start resolution callback userData = if is64bit then Platform64.Pt_Start(resolution, callback, userData) else Platform32.Pt_Start(resolution, callback, userData) 
   let Pt_Stop ()                            = if is64bit then Platform64.Pt_Stop() else Platform32.Pt_Stop()
   let Pt_Started ()                         = if is64bit then Platform64.Pt_Started() else Platform32.Pt_Started()
@@ -117,8 +125,15 @@ module Platform64 =
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
 
 module Platform =
-  let is64bit = Environment.Is64BitProcess
-
+  let is64bit = 
+    #if HARDCODE_X64
+    true
+    #elif HARDCODE_X86
+    false
+    #else
+    Environment.Is64BitProcess
+    #endif
+    
   let Pm_Abort stream                    = if is64bit then Platform64.Pm_Abort stream else Platform32.Pm_Abort stream
   let Pm_Close stream                    = if is64bit then Platform64.Pm_Close stream else Platform32.Pm_Close stream
   let Pm_CountDevices ()                 = if is64bit then Platform64.Pm_CountDevices () else Platform32.Pm_CountDevices ()
