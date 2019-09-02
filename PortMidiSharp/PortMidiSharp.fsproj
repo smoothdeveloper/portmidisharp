@@ -1,10 +1,36 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.0;net45</TargetFrameworks>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <OutputPath>..\build\$(Configuration)\$(Platform)</OutputPath>
+
+    <RuntimeIdentifiers>win-x64;win-x86;osx;linux</RuntimeIdentifiers>
+  </PropertyGroup>
+  <PropertyGroup>
+
+    <IsMac>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::get_OSX())))</IsMac>
+    <IsLinux>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::get_Linux())))</IsLinux>
+    <IsIsWindows>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::get_Windows())))</IsIsWindows>
+    <DefineConstants Condition=" '$(IsMac)' == 'true' ">$(DefineConstants);MAC</DefineConstants>
+    <DefineConstants Condition=" '$(IsLinux)' == 'true' ">$(DefineConstants);LINUX</DefineConstants>
+    <DefineConstants Condition=" '$(IsWindows)' == 'true' ">$(DefineConstants);WINDOWS</DefineConstants>
+    <DefineConstants Condition="'$(RuntimeIdentifier)' == 'win-x64'">$(DefineConstants);PLATFORM_WINX64</DefineConstants>
+    <DefineConstants Condition="'$(RuntimeIdentifier)' == 'win-x86'">$(DefineConstants);PLATFORM_WINX86</DefineConstants>
+    <DefineConstants Condition="'$(RuntimeIdentifier)' == 'osx'">$(DefineConstants);PLATFORM_OSX</DefineConstants>
+    <DefineConstants Condition="'$(RuntimeIdentifier)' == 'linux'">$(DefineConstants);PLATFORM_LINUX</DefineConstants>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <TargetFrameworks>$(TargetFrameworks);net45</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+    <TargetFrameworks>$(TargetFrameworks);net45</TargetFrameworks>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFrameworks>$(TargetFrameworks);netstandard2.0;</TargetFrameworks>
   </PropertyGroup>
   
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">

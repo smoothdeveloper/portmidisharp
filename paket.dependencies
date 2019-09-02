@@ -1,7 +1,15 @@
 source https://www.nuget.org/api/v2
+framework: net472, netstandard2.0, netcoreapp2.0
+clitool dotnet-proj-info
 
-
-
+nuget NativeLibraryLoader
 group Build
 	source https://www.nuget.org/api/v2
 	nuget portmidi.redist
+
+group Demos
+    framework: net472, netstandard2.0, netcoreapp2.0
+    source ../fsnative/build/Debug/AnyCpu/
+    source https://www.nuget.org/api/v2
+    generate_load_scripts: on    
+    nuget fsnative

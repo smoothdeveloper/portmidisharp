@@ -1,19 +1,11 @@
-//#if HAS_MIDINETTE
-//#r "../build/Debug/AnyCPU/net45/Midinette.dll"
-//#endif
-#r "../build/Debug/AnyCPU/net45/PortMidiSharp.dll"
+#r "../build/Debug/AnyCPU/netstandard2.0/PortMidiSharp.dll"
+#load "../.paket/load/net472/demos/fsnative.fsx"
 
-
-open System.Runtime.InteropServices
-open System.IO
-open System
-
-module Kernel =
-    [<DllImport("Kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)>]
-    extern IntPtr LoadLibrary(string lpFileName);
-
-let dllPath = Path.Combine(__SOURCE_DIRECTORY__, "..")
-match IntPtr.Size with
-| 4 -> Kernel.LoadLibrary(Path.Combine(dllPath, "portmidi_x86.dll")) |> ignore
-| 8 -> Kernel.LoadLibrary(Path.Combine(dllPath, "portmidi_x64.dll")) |> ignore
-| otherwise -> failwithf "intptr size: %i" otherwise
+open fsnative
+let libNames = [|"portmidi_x64.dll";"portmidi_x86.dll";"libportmidi.dylib";"libportmidi.so"|]
+let libPaths = [|@"C:\dev\src\gitlab.com\gauthier\portmidisharp\lib\win";"/usr/local/lib";|]
+let loader = LibraryLoader.withRuntimeLoader id
+let library = LibraryLoader.tryLoadLibrary libNames libPaths loader
+match library with
+| None -> failwithf "couldn't load portmidi!"
+| Some library -> printfn "loaded portmidi!"

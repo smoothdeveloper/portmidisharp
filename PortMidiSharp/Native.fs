@@ -1,4 +1,24 @@
-﻿namespace PortTime.Native
+﻿namespace Interop
+module Libraries =
+  module OSX =
+    let [<Literal>] portmidi = "libportmidi.dylib"
+    let paths = [|"/usr/local/bin/"|]
+    
+  module Windows =
+    let [<Literal>] portmidix64 = "portmidi_x64.dll"
+    let [<Literal>] portmidix86 = "portmidi_x86.dll"
+    
+  open System.Runtime.InteropServices
+
+#if MAC
+  let mac = true
+#elif LINUX
+  let linux = true
+#elif WINDOWS
+  let windows = true
+#endif
+
+namespace PortTime.Native
 open System
 open System.Runtime.InteropServices
 
@@ -14,7 +34,7 @@ type PtError =
 | InsufficientMemory = -9997
 
 module Platform32 =
-  let [<Literal>] dllName = "portmidi_x86.dll"
+  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix86
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
@@ -22,7 +42,7 @@ module Platform32 =
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
 
 module Platform64 =
-  let [<Literal>] dllName = "portmidi_x64.dll"
+  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix64
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
@@ -79,7 +99,7 @@ type [<Struct>] PmEvent =
   val mutable Timestamp : int
 
 module Platform32 =
-  let [<Literal>] dllName = "portmidi_x86.dll"
+  let [<Literal>] dllName =  Interop.Libraries.Windows.portmidix86
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
@@ -102,7 +122,7 @@ module Platform32 =
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
 
 module Platform64 =
-  let [<Literal>] dllName = "portmidi_x64.dll"
+  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix64
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
   [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
