@@ -5,11 +5,11 @@ module Libraries =
     let paths = [|"/usr/local/bin/"|]
     
   module Windows =
-    let [<Literal>] portmidix64 = "portmidi_x64.dll"
-    let [<Literal>] portmidix86 = "portmidi_x86.dll"
-    
+    let [<Literal>] portmidix64 = "portmidi.dll"
+    let [<Literal>] portmidix86 = "portmidi.dll"
+   
   open System.Runtime.InteropServices
-
+  let dllName = "portmidi"
 #if MAC
   let mac = true
 #elif LINUX
@@ -17,6 +17,8 @@ module Libraries =
 #elif WINDOWS
   let windows = true
 #endif
+
+  let [<Literal>] libName = "portmidi"
 
 namespace PortTime.Native
 open System
@@ -34,20 +36,18 @@ type PtError =
 | InsufficientMemory = -9997
 
 module Platform32 =
-  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix86
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtTimestamp Pt_Time()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtTimestamp Pt_Time()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
 
 module Platform64 =
-  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix64
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PtTimestamp Pt_Time()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Start(int resolution, [<MarshalAs(UnmanagedType.FunctionPtr)>] PtCallback callback, IntPtr userData)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtError     Pt_Stop()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int         Pt_Started()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PtTimestamp Pt_Time()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern unit        Pt_Sleep(int duration)
 
 module Platform = 
   let is64bit = 
@@ -99,50 +99,48 @@ type [<Struct>] PmEvent =
   val mutable Timestamp : int
 
 module Platform32 =
-  let [<Literal>] dllName =  Interop.Libraries.Windows.portmidix86
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultInputDeviceID  ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultOutputDeviceID ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetDeviceInfo            (int id)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetErrorText             (PmError errnum)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit    Pm_GetHostErrorText         (IntPtr msg, uint32 len)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_HasHostError             (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Initialize               ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenInput                (IntPtr& stream, int inputDevice, IntPtr inputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenOutput               (IntPtr& stream, int outputDevice, IntPtr outputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo, int latency)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Poll                     (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_Read                     (IntPtr stream, IntPtr buffer, int length)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetChannelMask           (IntPtr stream, int mask)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetFilter                (IntPtr stream, int filters)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Terminate                ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Write                    (IntPtr stream, PmEvent[] buffer, int length)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteShort               (IntPtr stream, int timestamp, int msg)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultInputDeviceID  ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultOutputDeviceID ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetDeviceInfo            (int id)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetErrorText             (PmError errnum)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern unit    Pm_GetHostErrorText         (IntPtr msg, uint32 len)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_HasHostError             (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Initialize               ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenInput                (IntPtr& stream, int inputDevice, IntPtr inputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenOutput               (IntPtr& stream, int outputDevice, IntPtr outputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo, int latency)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Poll                     (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_Read                     (IntPtr stream, IntPtr buffer, int length)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetChannelMask           (IntPtr stream, int mask)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetFilter                (IntPtr stream, int filters)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Terminate                ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Write                    (IntPtr stream, PmEvent[] buffer, int length)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteShort               (IntPtr stream, int timestamp, int msg)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
 
 module Platform64 =
-  let [<Literal>] dllName = Interop.Libraries.Windows.portmidix64
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultInputDeviceID  ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultOutputDeviceID ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetDeviceInfo            (int id)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetErrorText             (PmError errnum)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern unit    Pm_GetHostErrorText         (IntPtr msg, uint32 len)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_HasHostError             (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Initialize               ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenInput                (IntPtr& stream, int inputDevice, IntPtr inputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenOutput               (IntPtr& stream, int outputDevice, IntPtr outputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo, int latency)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Poll                     (IntPtr stream)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_Read                     (IntPtr stream, IntPtr buffer, int length)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetChannelMask           (IntPtr stream, int mask)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetFilter                (IntPtr stream, int filters)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Terminate                ()
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Write                    (IntPtr stream, PmEvent[] buffer, int length)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteShort               (IntPtr stream, int timestamp, int msg)
-  [<DllImport(dllName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Abort                    (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Close                    (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_CountDevices             ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultInputDeviceID  ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_GetDefaultOutputDeviceID ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetDeviceInfo            (int id)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern IntPtr  Pm_GetErrorText             (PmError errnum)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern unit    Pm_GetHostErrorText         (IntPtr msg, uint32 len)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_HasHostError             (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Initialize               ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenInput                (IntPtr& stream, int inputDevice, IntPtr inputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_OpenOutput               (IntPtr& stream, int outputDevice, IntPtr outputDriverInfo, int bufferSize, [<MarshalAs(UnmanagedType.FunctionPtr)>] PmTimeProc timeProc, IntPtr timeInfo, int latency)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Poll                     (IntPtr stream)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern int     Pm_Read                     (IntPtr stream, IntPtr buffer, int length)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetChannelMask           (IntPtr stream, int mask)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_SetFilter                (IntPtr stream, int filters)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Terminate                ()
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_Write                    (IntPtr stream, PmEvent[] buffer, int length)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteShort               (IntPtr stream, int timestamp, int msg)
+  [<DllImport(Interop.Libraries.libName, CallingConvention = CallingConvention.Cdecl)>] extern PmError Pm_WriteSysEx               (IntPtr stream, int timestamp, byte[] msg)
 
 module Platform =
   let is64bit = 

@@ -1,0 +1,9 @@
+.idea
+.ionide
+.vs
+.paket
+packages
+paket-files
+**/obj
+**/bin
+build
