@@ -21,11 +21,7 @@
     <DefineConstants Condition="'$(RuntimeIdentifier)' == 'linux'">$(DefineConstants);PLATFORM_LINUX</DefineConstants>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
-    <TargetFrameworks>$(TargetFrameworks);net45</TargetFrameworks>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x86'">
+  <PropertyGroup Condition="'$(IsWindows)' == 'true'">
     <TargetFrameworks>$(TargetFrameworks);net45</TargetFrameworks>
   </PropertyGroup>
 
@@ -38,9 +34,6 @@
     <WarningsAsErrors />
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(UseMidinette)'=='true'">
-    <DefineConstants>$(DefineConstants);HAS_MIDINETTE;</DefineConstants>
-  </PropertyGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Native.fs" />

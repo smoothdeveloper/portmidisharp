@@ -8,7 +8,7 @@ let libNames =
     | Windows -> [|"portmidi.dll"|]
     | OSX     -> [|"libportmidi.dylib"|]
     | Linux   -> [|"libportmidi.so"|]
-
+    | _ -> [||]
 
 let libPaths =
     match () with
@@ -16,6 +16,7 @@ let libPaths =
         let archFolder = if System.Environment.Is64BitProcess then "x64" else "x86" 
         [|@"C:\dev\src\gitlab.com\gauthier\portmidisharp\lib\win" </> archFolder|]
     | OSX | Linux -> [|"/usr/local/lib";|]
+    | _ -> [||]
 let loader = LibraryLoader.withRuntimeLoader id
 let library = LibraryLoader.tryLoadLibrary libNames libPaths loader
 match library with
