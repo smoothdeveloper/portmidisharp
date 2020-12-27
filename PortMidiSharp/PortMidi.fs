@@ -225,6 +225,11 @@ module Runtime =
         (fun m -> m.Message)
       
   let internal sizeOfEvent = Marshal.SizeOf(typeof<PmEvent>)
+
+  #if NO_FSHARP_RESULT_TYPE
+  type Result<'r,'e> = Ok of 'r | Error of 'e
+  #endif
+
   let read stream bufferSize = 
     let buffer = Marshal.AllocHGlobal (sizeOfEvent * bufferSize)
     let result = 
@@ -275,7 +280,7 @@ module Runtime =
     |> Event.filter (fun (device: MidiDeviceInfo,_) -> device.DeviceId = deviceInfo.DeviceId)
     |> Event.map snd
 
-  let getDevice nameFilter isInput =
+  let getDevice (nameFilter: string) isInput =
     let devices = getDevices()
     devices |> Seq.tryFind (fun d -> d.Name.Contains nameFilter && d.SupportsInput = isInput && d.SupportsOutput = not isInput)       
   

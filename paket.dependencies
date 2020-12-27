@@ -1,11 +1,15 @@
 source https://www.nuget.org/api/v2
-framework: net472, netstandard2.0, netcoreapp2.0
-clitool dotnet-proj-info
+strategy: min
+storage: none
+framework: >= net20, >= netstandard2.0, >= net5.0
+nuget FSharp.Core ~> 4
 
 nuget NativeLibraryLoader
 group Build
+	storage: none
 	source https://www.nuget.org/api/v2
 	nuget portmidi.redist
+	nuget Microsoft.SourceLink.GitLab
 
 group Demos
     framework: net472, netstandard2.0, netcoreapp2.0

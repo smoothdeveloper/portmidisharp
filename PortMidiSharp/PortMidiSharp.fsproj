@@ -1,12 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net40;net48;net5.0</TargetFrameworks>
     <WarningLevel>4</WarningLevel>
+	  <WarningsAsErrors />
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <OutputPath>..\build\$(Configuration)\$(Platform)</OutputPath>
-
     <RuntimeIdentifiers>win-x64;win-x86;osx;linux</RuntimeIdentifiers>
   </PropertyGroup>
+	<PropertyGroup>
+			<PackageId>PortMidiSharp</PackageId>
+	  <Version>0.0.0.0-alpha0</Version>
+	  <Authors>Gauthier Segay</Authors>
+	</PropertyGroup>
   <PropertyGroup>
 
     <IsMac>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::get_OSX())))</IsMac>
@@ -21,20 +27,12 @@
     <DefineConstants Condition="'$(RuntimeIdentifier)' == 'linux'">$(DefineConstants);PLATFORM_LINUX</DefineConstants>
   </PropertyGroup>
   
-  <PropertyGroup Condition="'$(IsWindows)' == 'true'">
-    <TargetFrameworks>$(TargetFrameworks);net45</TargetFrameworks>
-  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net40'">
+		<DefineConstants>$(DefineConstants);NO_FSHARP_RESULT_TYPE</DefineConstants>
+	</PropertyGroup>
 
-  <PropertyGroup>
-    <TargetFrameworks>$(TargetFrameworks);netstandard2.0;</TargetFrameworks>
-  </PropertyGroup>
-  
-  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <WarningsAsErrors />
-  </PropertyGroup>
-
-  <ItemGroup>
+	<ItemGroup>
+    <None Include="paket.references" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Native.fs" />
     <Compile Include="PortMidi.fs" />
